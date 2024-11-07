@@ -57,6 +57,7 @@ const SignIn = () => {
           <h2 className="text-center text-xl font-semibold mb-1">
             Log in to see more
           </h2>
+      
           <p className="text-center text-gray-500 mb-6">
             Access Pinterest's best ideas with a free account
           </p>
@@ -115,6 +116,7 @@ const SignIn = () => {
             />
             <span className="font-semibold">Continue with Google</span>
           </button>
+          {/* eslint-disable-next-line react/no-unescaped-entities */}
           <p className="text-xs text-center text-gray-500 mt-4">
             By continuing, you agree to Pinterest's{" "}
             <Link href="/" className="text-blue-600 hover:underline">

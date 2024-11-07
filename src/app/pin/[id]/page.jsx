@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { ClipLoader } from "react-spinners";
 import { toast } from "react-toastify";
 
@@ -15,36 +15,48 @@ const Pin = () => {
   const [pin, setPin] = useState({});
   const [morePins, setMorePins] = useState([]);
   const [isLiked, setIsLiked] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const { id } = useParams();
   const { data: session } = useSession();
 
-  const fetchMorePins = async () => {
-    const response = await axios.get("http://localhost:3000/api/pin");
-    setMorePins(response.data.pins);
-  };
-
-  const fetchPin = async () => {
-    const response = await axios.get(`http://localhost:3000/api/pin/${id}`);
-    setPin(response.data.pin);
-    const pinLiked = response.data.pin.likes.some(
-      (element) => session?.user?.name === element.user
-    );
-    if (pinLiked) {
-      setIsLiked(true);
-    } else {
-      setIsLiked(false);
+  // Memoized fetchPin function
+  const fetchPin = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await axios.get(`http://localhost:3000/api/pin/${id}`);
+      setPin(response.data.pin);
+      const pinLiked = response.data.pin.likes.some(
+        (element) => session?.user?.name === element.user
+      );
+      setIsLiked(pinLiked);
+    } catch (err) {
+      setError("Failed to load pin data.");
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [id, session]);
+
+  const fetchMorePins = useCallback(async () => {
+    try {
+      const response = await axios.get("http://localhost:3000/api/pin");
+      setMorePins(response.data.pins);
+    } catch (err) {
+      setError("Failed to load more pins.");
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPin();
+    fetchMorePins();
+  }, [fetchPin, fetchMorePins]);
 
   const handlePostComment = async () => {
     if (session && session?.user) {
-      console.log(session);
       const profileImage = session?.user?.image;
       const user = session?.user?.name;
-      console.log("Comment", comment);
-      console.log("User", user);
-      console.log("Profile Image", profileImage);
       if (!comment || !profileImage || !user) {
         toast.error("Please add a comment");
         return;
@@ -74,28 +86,36 @@ const Pin = () => {
   };
 
   const handleLikePin = async () => {
-    const response = await axios.post(
-      `http://localhost:3000/api/like/${id}`,
-      "",
-      {
-        headers: { "Content-Type": "application/json" },
-      }
-    );
-    if (response.status === 201) {
+    try {
+      const response = await axios.post(
+        `http://localhost:3000/api/like/${id}`,
+        "",
+        {
+          headers: { "Content-Type": "application/json" },
+        }
+      );
       toast.success(response.data.message);
       fetchPin();
-    } else if (response.status === 200) {
-      toast.success(response.data.message);
-      fetchPin();
-    } else {
+    } catch (err) {
       toast.error("Internal server error");
     }
   };
 
-  useEffect(() => {
-    fetchPin();
-    fetchMorePins();
-  }, [id]);
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-[750px]">
+        <ClipLoader color="#ef4444" size={120} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex justify-center items-center min-h-[750px] text-red-500 text-xl">
+        {error}
+      </div>
+    );
+  }
 
   return (
     <>
@@ -146,16 +166,14 @@ const Pin = () => {
                   </h3>
                   <div className="max-h-96 overflow-auto">
                     {pin?.comments?.length > 0 ? (
-                      pin.comments.map((element) => {
-                        return (
-                          <Comment
-                            key={element._id}
-                            user={element.user}
-                            comment={element.comment}
-                            profileImage={element.profileImage}
-                          />
-                        );
-                      })
+                      pin.comments.map((element) => (
+                        <Comment
+                          key={element._id}
+                          user={element.user}
+                          comment={element.comment}
+                          profileImage={element.profileImage}
+                        />
+                      ))
                     ) : (
                       <p className="font-semibold text-lg">No Comments Yet!</p>
                     )}
@@ -178,21 +196,18 @@ const Pin = () => {
             </div>
             <h3 className="mt-10 text-2xl font-semibold">More to Explore</h3>
             <div className="flex space-x-4 overflow-x-auto py-4">
-              {morePins &&
-                morePins.map((element) => {
-                  return (
-                    <Link href={`/pin/${element._id}`} key={element._id}>
-                      <Image
-                        width={100}
-                        height={100}
-                        src={element?.image?.url}
-                        alt={"Pin"}
-                        className="w-32 h-32 object-cover rounded-lg shadow-md"
-                        priority={true}
-                      />
-                    </Link>
-                  );
-                })}
+              {morePins.map((element) => (
+                <Link href={`/pin/${element._id}`} key={element._id}>
+                  <Image
+                    width={100}
+                    height={100}
+                    src={element?.image?.url}
+                    alt="Pin"
+                    className="w-32 h-32 object-cover rounded-lg shadow-md"
+                    priority={true}
+                  />
+                </Link>
+              ))}
             </div>
           </div>
         </div>
